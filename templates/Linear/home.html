@@ -1,0 +1,266 @@
+{% extends 'Linear/base.html' %}
+{% block title %}LP Solver - Home{% endblock %}
+{% block content %}
+<div class="hero-card">
+    <h2 class="hero-title">Linear Programming Solver</h2>
+    <p class="hero-subtitle">Step through your problem, just like the notebook workflow.</p>
+</div>
+
+<div class="wizard-card">
+    <div class="wizard-progress">
+        <div class="step-indicator active" data-step="1"><span>1</span><small>Dimensions</small></div>
+        <div class="step-line"></div>
+        <div class="step-indicator" data-step="2"><span>2</span><small>Objective</small></div>
+        <div class="step-line"></div>
+        <div class="step-indicator" data-step="3"><span>3</span><small>Constraints</small></div>
+        <div class="step-line"></div>
+        <div class="step-indicator" data-step="4"><span>4</span><small>Method</small></div>
+    </div>
+
+    <form method="post" action="{% url 'solve_lp' %}" id="wizard-form">
+        {% csrf_token %}
+
+        <!-- Step 1: Dimensions -->
+        <div class="wizard-step" data-step="1">
+            <h3 class="step-title">Step 1: Problem Dimensions</h3>
+            <p class="step-desc">How many variables and constraints does your problem have?</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="num_vars">Number of Variables</label>
+                    <input type="number" id="num_vars" name="num_vars" min="2" max="10" value="2" required>
+                </div>
+                <div class="form-group">
+                    <label for="num_cons">Number of Constraints</label>
+                    <input type="number" id="num_cons" name="num_cons" min="1" max="10" value="2" required>
+                </div>
+            </div>
+            <div class="wizard-nav">
+                <span></span>
+                <button type="button" class="btn-primary" onclick="goToStep(2)">Execute</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Objective -->
+        <div class="wizard-step hidden" data-step="2">
+            <h3 class="step-title">Step 2: Objective Function</h3>
+            <p class="step-desc">Choose the optimization direction and enter the coefficient for each variable.</p>
+            <div class="form-group">
+                <label>Optimization Mode</label>
+                <div class="mode-options">
+                    <label class="mode-option">
+                        <input type="radio" name="mode" value="max" checked>
+                        <span class="mode-label">Maximize</span>
+                    </label>
+                    <label class="mode-option">
+                        <input type="radio" name="mode" value="min">
+                        <span class="mode-label">Minimize</span>
+                    </label>
+                </div>
+            </div>
+            <div class="form-group" id="obj-coeffs-group">
+                <label>Objective Coefficients</label>
+                <div class="coeffs-row" id="obj-coeffs-row"></div>
+                <p class="preview" id="obj-preview"></p>
+            </div>
+            <div class="wizard-nav">
+                <button type="button" class="btn-secondary" onclick="goToStep(1)">&larr; Back</button>
+                <button type="button" class="btn-primary" onclick="goToStep(3)">Next &rarr;</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Constraints -->
+        <div class="wizard-step hidden" data-step="3">
+            <h3 class="step-title">Step 3: Constraints</h3>
+            <p class="step-desc">Enter each constraint's coefficients and right-hand side.</p>
+            <div id="constraints-container"></div>
+            <div class="wizard-nav">
+                <button type="button" class="btn-secondary" onclick="goToStep(2)">&larr; Back</button>
+                <button type="button" class="btn-primary" onclick="goToStep(4)">Next &rarr;</button>
+            </div>
+        </div>
+
+        <!-- Step 4: Method -->
+        <div class="wizard-step hidden" data-step="4">
+            <h3 class="step-title">Step 4: Choose Method</h3>
+            <p class="step-desc">Review your problem and select the solving method.</p>
+            <div class="review-box" id="review-box"></div>
+            <div class="method-options">
+                <label class="method-option" id="graphical-option">
+                    <input type="radio" name="method" value="graphical">
+                    <span class="method-label">Graphical Method</span>
+                    <span class="method-desc">Displays a chart with the feasible region. (Only for 2 variables)</span>
+                </label>
+                <label class="method-option">
+                    <input type="radio" name="method" value="simplex">
+                    <span class="method-label">Simplex Method</span>
+                    <span class="method-desc">Shows iteration tableaus. Works for any number of variables.</span>
+                </label>
+            </div>
+            <div class="wizard-nav">
+                <button type="button" class="btn-secondary" onclick="goToStep(3)">&larr; Back</button>
+                <button type="submit" class="btn-primary">Solve Problem</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+(function() {
+    const numVarsInput = document.getElementById('num_vars');
+    const numConsInput = document.getElementById('num_cons');
+    const objCoeffRow = document.getElementById('obj-coeffs-row');
+    const objPreview = document.getElementById('obj-preview');
+    const container = document.getElementById('constraints-container');
+    const reviewBox = document.getElementById('review-box');
+    const graphicalOption = document.getElementById('graphical-option');
+    const graphicalRadio = graphicalOption.querySelector('input[value="graphical"]');
+    const simplexRadio = document.querySelector('input[value="simplex"]');
+    const indicators = document.querySelectorAll('.step-indicator');
+    let currentStep = 1;
+
+    function setStep(step) {
+        document.querySelectorAll('.wizard-step').forEach(el => {
+            const s = parseInt(el.dataset.step);
+            el.classList.toggle('hidden', s !== step);
+        });
+        indicators.forEach(ind => {
+            const s = parseInt(ind.dataset.step);
+            ind.classList.remove('active', 'done');
+            if (s === step) ind.classList.add('active');
+            else if (s < step) ind.classList.add('done');
+        });
+        currentStep = step;
+    }
+
+    function buildObjCoeffs() {
+        const nv = parseInt(numVarsInput.value) || 2;
+        objCoeffRow.innerHTML = '';
+        for (let j = 0; j < nv; j++) {
+            const div = document.createElement('div');
+            div.className = 'coeff-field';
+            div.innerHTML = `<label>X${j + 1}</label><input type="number" name="obj_coeff_${j}" step="any" required>`;
+            objCoeffRow.appendChild(div);
+        }
+    }
+
+    function getMode() {
+        const checked = document.querySelector('input[name="mode"]:checked');
+        return checked ? checked.value : 'max';
+    }
+
+    function updateObjPreview() {
+        const mode = getMode();
+        const inputs = objCoeffRow.querySelectorAll('input');
+        const vals = Array.from(inputs).map(inp => inp.value).filter(v => v !== '');
+        if (vals.length > 0) {
+            objPreview.textContent = (mode === 'max' ? 'Maximize' : 'Minimize') + ' Z = ' + vals.map((c, i) => c + 'X' + (i + 1)).join(' + ');
+        } else {
+            objPreview.textContent = '';
+        }
+    }
+
+    window.goToStep = function(step) {
+        if (step === 2) {
+            const nv = parseInt(numVarsInput.value);
+            const nc = parseInt(numConsInput.value);
+            if (!nv || nv < 2 || !nc || nc < 1) {
+                alert('Please enter valid dimensions (vars >= 2, cons >= 1)');
+                return;
+            }
+            buildObjCoeffs();
+        }
+        if (step === 3) {
+            const inputs = objCoeffRow.querySelectorAll('input');
+            for (let inp of inputs) {
+                if (inp.value.trim() === '') {
+                    alert('Please fill all objective coefficients');
+                    return;
+                }
+            }
+            buildConstraints();
+        }
+        if (step === 4) {
+            const nv = parseInt(numVarsInput.value);
+            const nc = parseInt(numConsInput.value);
+            for (let i = 0; i < nc; i++) {
+                for (let j = 0; j < nv; j++) {
+                    const inp = document.querySelector(`[name="constraint_${i}_${j}"]`);
+                    if (!inp || inp.value.trim() === '') {
+                        alert(`Please fill all coefficients for Constraint ${i + 1}`);
+                        return;
+                    }
+                }
+            }
+            buildReview();
+            if (nv !== 2) {
+                if (graphicalRadio.checked) simplexRadio.checked = true;
+                graphicalOption.style.opacity = '0.5';
+                graphicalOption.style.pointerEvents = 'none';
+            } else {
+                graphicalOption.style.opacity = '1';
+                graphicalOption.style.pointerEvents = 'auto';
+            }
+        }
+        setStep(step);
+    };
+
+    function buildConstraints() {
+        const nv = parseInt(numVarsInput.value) || 2;
+        const nc = parseInt(numConsInput.value) || 2;
+        container.innerHTML = '';
+        for (let i = 0; i < nc; i++) {
+            const block = document.createElement('div');
+            block.className = 'constraint-block';
+            let coeffHtml = '';
+            for (let j = 0; j < nv; j++) {
+                coeffHtml += `<div class="coeff-field"><label>X${j + 1}</label><input type="number" name="constraint_${i}_${j}" step="any" required></div>`;
+            }
+            block.innerHTML = `
+                <div class="constraint-label">Constraint ${i + 1}</div>
+                <div class="constraint-coeffs-row">${coeffHtml}</div>
+                <div class="sign-field">
+                    <select name="sign_${i}" required>
+                        <option value="<=" selected>&le;</option>
+                        <option value=">=">&ge;</option>
+                        <option value="=">=</option>
+                    </select>
+                </div>
+                <div class="form-group rhs-input">
+                    <label>RHS</label>
+                    <input type="number" name="rhs_${i}" step="any" required>
+                </div>
+            `;
+            container.appendChild(block);
+        }
+    }
+
+    function buildReview() {
+        const nv = parseInt(numVarsInput.value);
+        const nc = parseInt(numConsInput.value);
+        const mode = getMode();
+        const obj = [];
+        for (let j = 0; j < nv; j++) {
+            obj.push(document.querySelector(`[name="obj_coeff_${j}"]`).value);
+        }
+        let html = '<p><strong>' + (mode === 'max' ? 'Maximize' : 'Minimize') + ' Z</strong> = ';
+        html += obj.map((c, i) => (parseFloat(c) === 1 ? '' : c) + 'X' + (i + 1)).join(' + ');
+        html += '</p><ul>';
+        for (let i = 0; i < nc; i++) {
+            const coeffs = [];
+            for (let j = 0; j < nv; j++) {
+                coeffs.push(document.querySelector(`[name="constraint_${i}_${j}"]`).value);
+            }
+            const rhs = document.querySelector(`[name="rhs_${i}"]`).value;
+            const sign = document.querySelector(`[name="sign_${i}"]`).value;
+            const signHtml = sign === '<=' ? '&le;' : (sign === '>=' ? '&ge;' : '=');
+            html += '<li>' + coeffs.map((c, j) => (parseFloat(c) === 1 ? '' : c) + 'X' + (j + 1)).join(' + ');
+            html += ' ' + signHtml + ' ' + rhs + '</li>';
+        }
+        html += '</ul>';
+        reviewBox.innerHTML = html;
+    }
+
+    objCoeffRow.addEventListener('input', updateObjPreview);
+})();
+</script>
+{% endblock %}

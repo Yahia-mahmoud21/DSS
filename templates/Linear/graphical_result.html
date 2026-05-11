@@ -1,0 +1,40 @@
+{% extends 'Linear/base.html' %}
+{% load custom_filters %}
+{% block title %}Graphical Result{% endblock %}
+{% block content %}
+<div class="result-header">
+    <h2 class="result-title">Graphical Method Results</h2>
+    <a href="{% url 'home' %}" class="btn-secondary">New Problem</a>
+</div>
+
+<div class="summary-card">
+    <h3 class="summary-title">Problem Summary</h3>
+    <p class="summary-line"><strong>Objective:</strong> {{ mode|title }} Z = {% for c in obj %}{{ c }}X{{ forloop.counter }}{% if not forloop.last %} + {% endif %}{% endfor %}</p>
+    <ul class="summary-list">
+        {% for row in A %}
+        <li>{% for c in row %}{{ c }}X{{ forloop.counter }}{% if not forloop.last %} + {% endif %}{% endfor %} {% if signs|index:forloop.counter0 == '<=' %}&le;{% elif signs|index:forloop.counter0 == '>=' %}&ge;{% else %}={% endif %} {{ b|index:forloop.counter0 }}</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="chart-card">
+    <img src="data:image/png;base64,{{ chart }}" alt="Graphical Method Chart" class="chart-image">
+</div>
+
+{% if result %}
+<div class="result-card highlight">
+    <h3 class="result-label">Optimal Solution</h3>
+    <p class="result-value">{{ mode|title }} Z = <span class="big-number">{{ result.optimal_z }}</span></p>
+    <div class="result-grid">
+        <div class="result-item">
+            <span class="result-item-label">X1</span>
+            <span class="result-item-value">{{ result.x1 }}</span>
+        </div>
+        <div class="result-item">
+            <span class="result-item-label">X2</span>
+            <span class="result-item-value">{{ result.x2 }}</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

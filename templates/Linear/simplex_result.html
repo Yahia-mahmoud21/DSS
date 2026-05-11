@@ -1,0 +1,67 @@
+{% extends 'Linear/base.html' %}
+{% load custom_filters %}
+{% block title %}Simplex Result{% endblock %}
+{% block content %}
+<div class="result-header">
+    <h2 class="result-title">Simplex Method Results</h2>
+    <a href="{% url 'home' %}" class="btn-secondary">New Problem</a>
+</div>
+
+<div class="summary-card">
+    <h3 class="summary-title">Problem Summary</h3>
+    <p class="summary-line"><strong>Objective:</strong> {{ mode|title }} Z = {% for c in obj %}{{ c }}X{{ forloop.counter }}{% if not forloop.last %} + {% endif %}{% endfor %}</p>
+    <ul class="summary-list">
+        {% for row in A %}
+        <li>{% for c in row %}{{ c }}X{{ forloop.counter }}{% if not forloop.last %} + {% endif %}{% endfor %} {% if signs|index:forloop.counter0 == '<=' %}&le;{% elif signs|index:forloop.counter0 == '>=' %}&ge;{% else %}={% endif %} {{ b|index:forloop.counter0 }}</li>
+        {% endfor %}
+    </ul>
+</div>
+
+{% if solution.success %}
+<div class="result-card highlight">
+    <h3 class="result-label">Optimal Solution</h3>
+    <p class="result-value">{{ mode|title }} Z = <span class="big-number">{{ solution.optimal_z }}</span></p>
+    <div class="result-grid">
+        {% for val in solution.variables %}
+        <div class="result-item">
+            <span class="result-item-label">X{{ forloop.counter }}</span>
+            <span class="result-item-value">{{ val }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="result-card highlight error">
+    <h3 class="result-label">No Feasible Solution</h3>
+    <p class="result-value">The given constraints do not have a feasible solution.</p>
+</div>
+{% endif %}
+
+{% for iter in solution.iterations %}
+<div class="table-card">
+    <h3 class="table-title">Iteration {{ iter.number }}</h3>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Basic</th>
+                    {% for h in iter.header %}
+                    <th>{{ h }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in iter.rows %}
+                <tr>
+                    <td class="row-label">{{ row.label }}</td>
+                    {% for v in row.values %}
+                    <td>{{ v }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
