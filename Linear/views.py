@@ -11,21 +11,21 @@ from django.conf import settings
 
 class SimplexSolver:
     def __init__(self, obj, A, b, signs, mode):
-        self.obj = np.array(obj, dtype=float)
-        self.A_orig = A
-        self.b_orig = b
-        self.signs = signs
-        self.mode = mode.lower()
-        self.n_vars = len(obj)
-        self.n_cons = len(b)
+        self.obj = np.array(obj, dtype=float) # [10, 20]
+        self.A_orig = A # [[x, y], [x, y]]
+        self.b_orig = b # [rhs, rhs]
+        self.signs = signs # [">=", "<="]
+        self.mode = mode.lower() # "max"
+        self.n_vars = len(obj) # 2
+        self.n_cons = len(b) # 2
 
         # Convert constraints to <= form for the simplex tableau (educational)
-        self.A_simplex = []
-        self.b_simplex = []
+        self.A_simplex = [] # [[ -x, -y], [x, y ]]
+        self.b_simplex = [] # [-rhs, rhs]
         for i in range(self.n_cons):
             if signs[i] == '>=':
-                self.A_simplex.append([-x for x in A[i]])
-                self.b_simplex.append(-b[i])
+                self.A_simplex.append([-x for x in A[i]]) 
+                self.b_simplex.append(-b[i]) 
             else:
                 self.A_simplex.append(A[i])
                 self.b_simplex.append(b[i])
@@ -33,13 +33,13 @@ class SimplexSolver:
         self.A_simplex = np.array(self.A_simplex, dtype=float)
         self.b_simplex = np.array(self.b_simplex, dtype=float)
 
-        # Build initial tableau
+        # Build initial table
         self.cols = [f"X{i+1}" for i in range(self.n_vars)] + [f"S{i+1}" for i in range(self.n_cons)] + ["RHS"]
         self.rows = [f"S{i+1}" for i in range(self.n_cons)] + ["Z"]
-        self.table = np.zeros((self.n_cons + 1, len(self.cols)))
+        self.table = np.zeros((self.n_cons + 1, len(self.cols))) # np.zeros((4, 6))
         self.iterations = []
-
-        self.table[:self.n_cons, :self.n_vars] = self.A_simplex
+                # [   3                 2    ] = [[-x, -y], [x, y], [x , y]]
+        self.table[:self.n_cons , :self.n_vars] = self.A_simplex
         self.table[:self.n_cons, self.n_vars:self.n_vars + self.n_cons] = np.eye(self.n_cons)
         self.table[:self.n_cons, -1] = self.b_simplex
 
@@ -66,7 +66,7 @@ class SimplexSolver:
         # Educational tableau display
         self.record_tableau(0)
         while np.any(self.table[-1, :-1] < 0):
-            pivot_col = np.argmin(self.table[-1, :-1])
+            pivot_col = np.argmin(self.table[-1, :-1]) # smaller number in z row
             ratios = [self.table[i, -1] / self.table[i, pivot_col] if self.table[i, pivot_col] > 0 else np.inf for i in range(self.n_cons)]
             pivot_row = np.argmin(ratios)
             if ratios[pivot_row] == np.inf:
@@ -83,11 +83,16 @@ class SimplexSolver:
         A_ub, b_ub, A_eq, b_eq = [], [], [], []
         for i in range(self.n_cons):
             if self.signs[i] == '<=':
-                A_ub.append(self.A_orig[i]); b_ub.append(self.b_orig[i])
+                A_ub.append(self.A_orig[i])
+                b_ub.append(self.b_orig[i])
+
             elif self.signs[i] == '>=':
-                A_ub.append([-x for x in self.A_orig[i]]); b_ub.append(-self.b_orig[i])
+                A_ub.append([-x for x in self.A_orig[i]])
+                b_ub.append(-self.b_orig[i])
+
             elif self.signs[i] == '=':
-                A_eq.append(self.A_orig[i]); b_eq.append(self.b_orig[i])
+                A_eq.append(self.A_orig[i])
+                b_eq.append(self.b_orig[i])
 
         res = linprog(
             c_for_scipy,

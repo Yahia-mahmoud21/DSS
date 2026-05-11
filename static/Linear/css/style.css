@@ -595,10 +595,9 @@ body {
 }
 
 .big-number {
-    font-size: 2rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--color-accent);
-    font-family: var(--font-heading);
 }
 
 /* Chart */
